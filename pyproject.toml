@@ -1,0 +1,53 @@
+[tool.poetry]
+name = "enterprise-knowledge-agent"
+version = "0.1.0"
+description = "An AI-powered enterprise knowledge management system with MCP protocol support"
+authors = ["Your Name <your.email@example.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"  # LlamaIndex 0.10.x only supports up to Python 3.11
+# Core dependencies for Phase 1
+llama-index = "^0.10.0"
+llama-index-vector-stores-qdrant = "^0.2.0"
+qdrant-client = "^1.7.0"
+pypdf = "^4.0.1"  # Required by llama-index-readers-file
+python-docx = "^1.1.0"
+pydantic = "^2.5.0"
+pydantic-settings = "^2.1.0"
+python-dotenv = "^1.0.0"
+# Will add more in later phases
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.3"
+pytest-asyncio = "^0.21.1"
+pytest-cov = "^4.1.0"
+black = "^23.12.0"
+ruff = "^0.1.8"
+mypy = "^1.7.1"
+isort = "^5.13.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
