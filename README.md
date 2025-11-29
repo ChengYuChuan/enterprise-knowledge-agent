@@ -11,11 +11,11 @@
 Currently in **Phase 1: Basic RAG Pipeline** development.
 
 - [x] Project initialization
-- [ ] Document loaders (PDF, MD, TXT)
-- [ ] Chunking strategies
-- [ ] Qdrant integration
-- [ ] Basic retrieval
-- [ ] CLI testing tool
+- [x] Document loaders (PDF, MD, TXT)
+- [x] Chunking strategies
+- [x] Qdrant integration
+- [x] Basic retrieval
+- [x] CLI testing tool
 
 ## ✨ Planned Features
 
