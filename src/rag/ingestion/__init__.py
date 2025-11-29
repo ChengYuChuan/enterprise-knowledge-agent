@@ -4,12 +4,15 @@ RAG ingestion module.
 This module handles document loading and chunking.
 """
 
-from .base_chunker import BaseChunker, Chunk
+from src.rag.types import Chunk
+
+from .base_chunker import BaseChunker
 from .base_loader import BaseLoader, Document
 from .chunkers import ChunkerFactory
 from .fixed_size_chunker import FixedSizeChunker
 from .loaders import LoaderFactory
 from .pdf_loader import PDFLoader
+from .pipeline import IngestionPipeline
 from .semantic_chunker import SemanticChunker
 from .sentence_chunker import SentenceChunker
 from .text_loader import TextLoader

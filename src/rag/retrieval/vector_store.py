@@ -10,7 +10,7 @@ from typing import Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
-from src.rag.ingestion import Chunk
+from src.rag.types import Chunk
 
 
 class QdrantVectorStore:

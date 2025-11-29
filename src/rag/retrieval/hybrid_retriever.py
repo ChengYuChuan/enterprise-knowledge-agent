@@ -1,122 +1,227 @@
 """
-Cross-encoder reranker implementation.
+Hybrid retrieval combining vector search and BM25.
 
-This module provides reranking functionality using cross-encoder models
-to improve retrieval quality by reordering initial search results.
+This module implements hybrid search that combines:
+1. Vector similarity search (semantic)
+2. BM25 keyword search (lexical)
+3. Reciprocal Rank Fusion (RRF) for score combination
+4. Optional cross-encoder reranking
 """
 
 from typing import Optional
 
-from sentence_transformers import CrossEncoder
+from .bm25_search import BM25Search
+from .embedder import MockEmbedder
+from .reranker import Reranker
+from .vector_store import QdrantVectorStore
 
 
-class Reranker:
+class HybridRetriever:
     """
-    Cross-encoder based reranker for improving search results.
+    Hybrid retriever combining vector and BM25 search.
     
-    Cross-encoders jointly encode the query and document, producing
-    a relevance score. This is more accurate than bi-encoders but
-    also more computationally expensive.
+    Implements the following pipeline:
+    1. Vector search (semantic similarity)
+    2. BM25 search (keyword matching)
+    3. Reciprocal Rank Fusion (RRF) to combine results
+    4. Optional reranking with cross-encoder
     
     Attributes:
-        model: CrossEncoder model instance.
-        model_name: Name of the model being used.
+        vector_store: Vector store for semantic search.
+        embedder: Embedder for query encoding.
+        bm25_search: BM25 searcher for keyword search.
+        alpha: Weight for vector search (0=pure BM25, 1=pure vector).
+        use_reranking: Whether to apply reranking.
+        reranker: Cross-encoder reranker (if use_reranking=True).
     """
     
-    DEFAULT_MODEL = "BAAI/bge-reranker-base"
-    
     def __init__(
-        self, 
-        model_name: Optional[str] = None,
-        device: Optional[str] = None
+        self,
+        vector_store: QdrantVectorStore,
+        embedder: MockEmbedder,
+        alpha: float = 0.5,
+        use_reranking: bool = False,
+        reranker_model: Optional[str] = None,
     ) -> None:
         """
-        Initialize the reranker.
+        Initialize the hybrid retriever.
         
         Args:
-            model_name: HuggingFace model name (default: BAAI/bge-reranker-base).
-            device: Device to run model on ('cpu', 'cuda', or None for auto).
+            vector_store: Vector store instance.
+            embedder: Embedder instance.
+            alpha: Weight for vector search (0-1). 
+                   0 = pure BM25, 1 = pure vector, 0.5 = balanced.
+            use_reranking: Whether to use cross-encoder reranking.
+            reranker_model: Model name for reranker (if use_reranking=True).
         """
-        self.model_name = model_name or self.DEFAULT_MODEL
+        self.vector_store = vector_store
+        self.embedder = embedder
+        self.bm25_search = BM25Search()
+        self.alpha = alpha
+        self.use_reranking = use_reranking
         
-        # Initialize cross-encoder
-        # Note: First time will download the model
-        self.model = CrossEncoder(
-            self.model_name,
-            max_length=512,
-            device=device
-        )
+        # Initialize reranker if needed
+        self.reranker: Optional[Reranker] = None
+        if use_reranking:
+            self.reranker = Reranker(model_name=reranker_model)
     
-    def rerank(
+    def index_for_bm25(self, chunks: list[dict]) -> None:
+        """
+        Index chunks for BM25 search.
+        
+        This should be called after documents are ingested into vector store.
+        
+        Args:
+            chunks: List of chunk dictionaries with 'chunk_id', 'text', 'metadata'.
+        """
+        self.bm25_search.index_chunks(chunks)
+    
+    def search(
         self,
         query: str,
-        results: list[dict],
-        top_k: Optional[int] = None
+        top_k: int = 5,
+        retrieve_k: int = 20,
     ) -> list[dict]:
         """
-        Rerank search results using cross-encoder.
+        Perform hybrid search.
+        
+        IMPORTANT: This is a SYNCHRONOUS method (not async).
         
         Args:
-            query: Original search query.
-            results: List of search results to rerank. Each result should have
-                    a 'text' field.
-            top_k: Number of top results to return (default: all results).
+            query: Search query string.
+            top_k: Number of final results to return.
+            retrieve_k: Number of results to retrieve from each method before fusion.
             
         Returns:
-            list[dict]: Reranked results with updated scores and ranks.
-            
-        Raises:
-            ValueError: If results is empty or missing required fields.
+            list[dict]: Ranked search results.
         """
-        if not results:
-            return []
+        # Step 1: Vector search
+        query_embedding = self.embedder.embed_text(query)
+        vector_results = self.vector_store.search(
+            query_embedding=query_embedding,
+            top_k=retrieve_k,
+            score_threshold=None,
+        )
         
-        # Validate result format
-        if not all("text" in r for r in results):
-            raise ValueError("All results must contain 'text' field")
+        # Step 2: BM25 search
+        bm25_results = self.bm25_search.search(
+            query=query,
+            top_k=retrieve_k,
+        )
         
-        # Prepare query-document pairs
-        pairs = [[query, result["text"]] for result in results]
+        # Step 3: Reciprocal Rank Fusion (RRF)
+        fused_results = self._reciprocal_rank_fusion(
+            vector_results=vector_results,
+            bm25_results=bm25_results,
+        )
         
-        # Get reranker scores
-        scores = self.model.predict(pairs)
+        # Step 4: Optional reranking
+        if self.use_reranking and self.reranker is not None:
+            # Rerank top results
+            rerank_candidates = fused_results[:retrieve_k]
+            fused_results = self.reranker.rerank(
+                query=query,
+                results=rerank_candidates,
+                top_k=top_k,
+            )
+        else:
+            # Just take top-k
+            fused_results = fused_results[:top_k]
         
-        # Update results with new scores
-        reranked_results = []
-        for result, score in zip(results, scores):
-            # Create a copy to avoid modifying original
-            reranked = result.copy()
-            
-            # Store original score if present
-            if "score" in reranked:
-                reranked["original_score"] = reranked["score"]
-            
-            # Update with reranker score
-            reranked["score"] = float(score)
-            reranked_results.append(reranked)
-        
-        # Sort by new scores
-        reranked_results.sort(key=lambda x: x["score"], reverse=True)
-        
-        # Update ranks
-        for i, result in enumerate(reranked_results):
-            result["rank"] = i + 1
-        
-        # Return top-k if specified
-        if top_k is not None:
-            reranked_results = reranked_results[:top_k]
-        
-        return reranked_results
+        return fused_results
     
-    def get_model_info(self) -> dict:
+    def _reciprocal_rank_fusion(
+        self,
+        vector_results: list[dict],
+        bm25_results: list[dict],
+        k: int = 60,
+    ) -> list[dict]:
         """
-        Get information about the reranker model.
+        Combine results using Reciprocal Rank Fusion (RRF).
+        
+        RRF formula: RRF_score(d) = sum(1 / (k + rank_i(d)))
+        
+        Args:
+            vector_results: Results from vector search.
+            bm25_results: Results from BM25 search.
+            k: Constant for RRF formula (default: 60).
+            
+        Returns:
+            list[dict]: Fused and ranked results.
+        """
+        # Build chunk_id to result mapping
+        all_chunks: dict[str, dict] = {}
+        
+        # Process vector results
+        for rank, result in enumerate(vector_results, start=1):
+            chunk_id = result["chunk_id"]
+            
+            # Initialize if new
+            if chunk_id not in all_chunks:
+                all_chunks[chunk_id] = {
+                    "chunk_id": chunk_id,
+                    "text": result["text"],
+                    "metadata": result["metadata"],
+                    "vector_score": result.get("score", 0),
+                    "bm25_score": 0,
+                    "vector_rank": rank,
+                    "bm25_rank": None,
+                    "rrf_score": 0,
+                }
+            
+            # Add RRF score from vector search
+            all_chunks[chunk_id]["rrf_score"] += self.alpha / (k + rank)
+        
+        # Process BM25 results
+        for rank, result in enumerate(bm25_results, start=1):
+            chunk_id = result["chunk_id"]
+            
+            # Initialize if new
+            if chunk_id not in all_chunks:
+                all_chunks[chunk_id] = {
+                    "chunk_id": chunk_id,
+                    "text": result["text"],
+                    "metadata": result["metadata"],
+                    "vector_score": 0,
+                    "bm25_score": result.get("score", 0),
+                    "vector_rank": None,
+                    "bm25_rank": rank,
+                    "rrf_score": 0,
+                }
+            else:
+                # Update BM25 info
+                all_chunks[chunk_id]["bm25_score"] = result.get("score", 0)
+                all_chunks[chunk_id]["bm25_rank"] = rank
+            
+            # Add RRF score from BM25 search
+            all_chunks[chunk_id]["rrf_score"] += (1 - self.alpha) / (k + rank)
+        
+        # Convert to list and sort by RRF score
+        fused_results = list(all_chunks.values())
+        fused_results.sort(key=lambda x: x["rrf_score"], reverse=True)
+        
+        # Update final ranks and use RRF score as main score
+        for rank, result in enumerate(fused_results, start=1):
+            result["rank"] = rank
+            result["score"] = result["rrf_score"]
+        
+        return fused_results
+    
+    def get_stats(self) -> dict:
+        """
+        Get statistics about the hybrid retriever.
         
         Returns:
-            dict: Model information including name and device.
+            dict: Statistics including alpha, reranking status, etc.
         """
-        return {
-            "model_name": self.model_name,
-            "device": str(self.model.device),
-            "max_length": self.model.max_length,
+        stats = {
+            "alpha": self.alpha,
+            "use_reranking": self.use_reranking,
+            "vector_store_stats": self.vector_store.get_collection_info(),
+            "bm25_stats": self.bm25_search.get_corpus_stats(),
         }
+        
+        if self.reranker is not None:
+            stats["reranker_info"] = self.reranker.get_model_info()
+        
+        return stats
