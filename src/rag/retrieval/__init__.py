@@ -5,7 +5,7 @@ This module handles document retrieval and search.
 """
 
 from .bm25_search import BM25Search
-# from .embedder import MockEmbedder
+from .embedder import MockEmbedder
 from .hybrid_retriever import HybridRetriever
 from .reranker import Reranker
 from .retriever import Retriever

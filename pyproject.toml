@@ -26,6 +26,8 @@ sentence-transformers = "^2.2.2"  # Cross-encoder reranking
 # Will add more in later phases
 openai = "^2.8.1"
 
+fastmcp = "^0.2.0"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
 pytest-asyncio = "^0.21.1"
