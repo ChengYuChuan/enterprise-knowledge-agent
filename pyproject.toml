@@ -23,10 +23,17 @@ python-dotenv = "^1.0.0"
 rank-bm25 = "^0.2.2"  # BM25 keyword search
 sentence-transformers = "^2.2.2"  # Cross-encoder reranking
 
-# Will add more in later phases
 openai = "^2.8.1"
-
 fastmcp = "^0.2.0"
+
+# Phase 4: Multi-LLM + API Layer
+anthropic = "^0.75.0"
+httpx = "^0.28.0"
+fastapi = "^0.123.0"
+uvicorn = "^0.38.0"
+python-multipart = "^0.0.9"
+sse-starlette = "^2.0.0"
+pyyaml = "^6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

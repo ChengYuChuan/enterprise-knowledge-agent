@@ -136,8 +136,10 @@ class LLMProviderNotFoundError(LLMError):
         provider: Optional[str] = None,
         available_providers: Optional[list[str]] = None
     ):
-        super().__init__(message, provider)
+        # Set available_providers BEFORE calling super().__init__()
+        # because _format_message() needs it
         self.available_providers = available_providers or []
+        super().__init__(message, provider)
     
     def _format_message(self) -> str:
         base_msg = super()._format_message()
