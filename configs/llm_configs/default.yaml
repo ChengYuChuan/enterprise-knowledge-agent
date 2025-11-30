@@ -1,0 +1,52 @@
+# Default LLM Configuration
+#
+# This file provides a single configuration point for your application.
+# Change the provider and settings here to switch between LLM backends.
+#
+# Usage:
+#   provider = get_provider_from_yaml("configs/llm_configs/default.yaml")
+#
+# Or in your application config:
+#   llm_config: configs/llm_configs/default.yaml
+
+# =============================================================================
+# Choose Your Provider
+# =============================================================================
+# Options: openai, anthropic, ollama
+provider: ${LLM_PROVIDER:-openai}
+
+# =============================================================================
+# Model Configuration
+# =============================================================================
+# Model names vary by provider:
+#   OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo
+#   Anthropic: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307
+#   Ollama: llama3, mistral, codellama, phi3
+model: ${LLM_MODEL:-gpt-4}
+
+# =============================================================================
+# Generation Parameters
+# =============================================================================
+temperature: ${LLM_TEMPERATURE:-0.7}
+max_tokens: ${LLM_MAX_TOKENS:-2048}
+top_p: ${LLM_TOP_P:-1.0}
+timeout: ${LLM_TIMEOUT:-30.0}
+
+# =============================================================================
+# Authentication (provider-specific)
+# =============================================================================
+# API keys are loaded from environment variables by the providers.
+# Set these in your environment:
+#   - OPENAI_API_KEY for OpenAI
+#   - ANTHROPIC_API_KEY for Anthropic
+#   - (No key needed for Ollama)
+
+# Uncomment to use Azure OpenAI:
+# base_url: ${AZURE_OPENAI_ENDPOINT}
+# api_key: ${AZURE_OPENAI_API_KEY}
+
+# =============================================================================
+# Provider-Specific Settings
+# =============================================================================
+extra_params: {}
+  # Add any provider-specific parameters here

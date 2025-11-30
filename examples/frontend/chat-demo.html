@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Knowledge Agent - Chat Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .container {
+            flex: 1;
+            display: flex;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 1rem;
+            gap: 1rem;
+            overflow: hidden;
+        }
+        
+        .chat-panel {
+            flex: 2;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sources-panel {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        
+        .sources-panel h3 {
+            color: #667eea;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .message {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.75rem;
+        }
+        
+        .message.user {
+            flex-direction: row-reverse;
+        }
+        
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .message.user .avatar {
+            background: #667eea;
+        }
+        
+        .message.assistant .avatar {
+            background: #10b981;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            line-height: 1.5;
+        }
+        
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant .message-content {
+            background: #f0f0f0;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message.assistant .message-content.streaming {
+            border-left: 3px solid #667eea;
+        }
+        
+        .input-area {
+            padding: 1rem;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .input-area input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .input-area input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .input-area button {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        
+        .input-area button:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+        
+        .input-area button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .source-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid #667eea;
+        }
+        
+        .source-card .filename {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+        
+        .source-card .score {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .source-card .content {
+            font-size: 0.8rem;
+            color: #555;
+            line-height: 1.4;
+        }
+        
+        .status-bar {
+            padding: 0.5rem 1rem;
+            background: #f8f9fa;
+            font-size: 0.8rem;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+        
+        .status-dot.streaming {
+            background: #667eea;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .config-panel {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+        }
+        
+        .config-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .config-item label {
+            color: #666;
+        }
+        
+        .config-item select,
+        .config-item input[type="number"] {
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #667eea;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        .no-sources {
+            color: #999;
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 Enterprise Knowledge Agent</h1>
+    </div>
+    
+    <div class="container">
+        <div class="chat-panel">
+            <div class="config-panel">
+                <div class="config-item">
+                    <label>Provider:</label>
+                    <select id="provider">
+                        <option value="openai">OpenAI</option>
+                        <option value="anthropic">Anthropic</option>
+                        <option value="ollama">Ollama</option>
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>RAG:</label>
+                    <input type="checkbox" id="useRag" checked>
+                </div>
+                <div class="config-item">
+                    <label>Top K:</label>
+                    <input type="number" id="topK" value="5" min="1" max="20" style="width: 60px;">
+                </div>
+                <div class="config-item">
+                    <label>Temperature:</label>
+                    <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1" style="width: 70px;">
+                </div>
+            </div>
+            
+            <div class="messages" id="messages">
+                <!-- Messages will be added here -->
+            </div>
+            
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+                <div id="latency"></div>
+            </div>
+            
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="Ask a question..." autofocus>
+                <button id="sendBtn" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+        
+        <div class="sources-panel">
+            <h3>📚 Retrieved Sources</h3>
+            <div id="sources">
+                <div class="no-sources">Sources will appear here when RAG is enabled</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:8000/api/v1';
+        const API_KEY = 'your-api-key';  // Replace with actual API key
+        
+        // State
+        let conversationId = null;
+        let isStreaming = false;
+        let currentSources = [];
+        
+        // DOM Elements
+        const messagesContainer = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const latencyDisplay = document.getElementById('latency');
+        const sourcesContainer = document.getElementById('sources');
+        
+        // Event listeners
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !isStreaming) {
+                sendMessage();
+            }
+        });
+        
+        // Add user message to chat
+        function addUserMessage(content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.innerHTML = `
+                <div class="avatar">👤</div>
+                <div class="message-content">${escapeHtml(content)}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // Add assistant message placeholder
+        function addAssistantMessage() {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant';
+            messageDiv.id = 'currentMessage';
+            messageDiv.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="message-content streaming"><span class="cursor"></span></div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+            return messageDiv.querySelector('.message-content');
+        }
+        
+        // Update streaming message
+        function updateStreamingMessage(content) {
+            const messageContent = document.querySelector('#currentMessage .message-content');
+            if (messageContent) {
+                messageContent.innerHTML = formatContent(content) + '<span class="cursor"></span>';
+                scrollToBottom();
+            }
+        }
+        
+        // Finalize message
+        function finalizeMessage(content) {
+            const messageDiv = document.getElementById('currentMessage');
+            if (messageDiv) {
+                const messageContent = messageDiv.querySelector('.message-content');
+                messageContent.classList.remove('streaming');
+                messageContent.innerHTML = formatContent(content);
+                messageDiv.removeAttribute('id');
+            }
+        }
+        
+        // Update sources panel
+        function updateSources(sources) {
+            if (!sources || sources.length === 0) {
+                sourcesContainer.innerHTML = '<div class="no-sources">No sources retrieved</div>';
+                return;
+            }
+            
+            currentSources = sources;
+            sourcesContainer.innerHTML = sources.map((source, index) => `
+                <div class="source-card">
+                    <div class="filename">📄 ${escapeHtml(source.filename || 'Unknown')}</div>
+                    <div class="score">Relevance: ${(source.score * 100).toFixed(1)}%</div>
+                    <div class="content">${escapeHtml(truncate(source.content, 200))}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Send message
+        async function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content || isStreaming) return;
+            
+            // Update UI
+            addUserMessage(content);
+            messageInput.value = '';
+            setStreaming(true);
+            
+            const messageContent = addAssistantMessage();
+            let fullContent = '';
+            
+            try {
+                // Prepare request
+                const request = {
+                    message: content,
+                    conversation_id: conversationId,
+                    use_rag: document.getElementById('useRag').checked,
+                    top_k: parseInt(document.getElementById('topK').value),
+                    temperature: parseFloat(document.getElementById('temperature').value),
+                };
+                
+                // Create EventSource for SSE
+                // Note: EventSource doesn't support POST, so we use fetch with ReadableStream
+                const response = await fetch(`${API_BASE}/chat/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': API_KEY,
+                        'Accept': 'text/event-stream',
+                    },
+                    body: JSON.stringify(request),
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                // Process SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Process complete events (separated by double newlines)
+                    const events = buffer.split('\n\n');
+                    buffer = events.pop() || '';  // Keep incomplete event in buffer
+                    
+                    for (const eventStr of events) {
+                        if (!eventStr.trim()) continue;
+                        
+                        const event = parseSSEEvent(eventStr);
+                        if (!event) continue;
+                        
+                        handleSSEEvent(event, (content) => {
+                            fullContent = content;
+                            updateStreamingMessage(content);
+                        });
+                    }
+                }
+                
+                // Finalize
+                finalizeMessage(fullContent);
+                
+            } catch (error) {
+                console.error('Stream error:', error);
+                finalizeMessage(`Error: ${error.message}`);
+            } finally {
+                setStreaming(false);
+            }
+        }
+        
+        // Parse SSE event string
+        function parseSSEEvent(eventStr) {
+            const lines = eventStr.split('\n');
+            const event = { type: 'message', data: null };
+            
+            for (const line of lines) {
+                if (line.startsWith('event:')) {
+                    event.type = line.slice(6).trim();
+                } else if (line.startsWith('data:')) {
+                    try {
+                        event.data = JSON.parse(line.slice(5).trim());
+                    } catch (e) {
+                        event.data = line.slice(5).trim();
+                    }
+                } else if (line.startsWith('id:')) {
+                    event.id = line.slice(3).trim();
+                }
+            }
+            
+            return event.data ? event : null;
+        }
+        
+        // Handle SSE event
+        let streamContent = '';
+        
+        function handleSSEEvent(event, updateCallback) {
+            switch (event.type) {
+                case 'start':
+                    streamContent = '';
+                    conversationId = event.data.conversation_id;
+                    setStatus(`Connected to ${event.data.provider}/${event.data.model}`);
+                    break;
+                    
+                case 'sources':
+                    updateSources(event.data.sources);
+                    break;
+                    
+                case 'message':
+                    streamContent += event.data.content || '';
+                    updateCallback(streamContent);
+                    break;
+                    
+                case 'done':
+                    conversationId = event.data.conversation_id;
+                    if (event.data.latency_ms) {
+                        latencyDisplay.textContent = `${event.data.latency_ms.toFixed(0)}ms`;
+                    }
+                    if (event.data.usage) {
+                        console.log('Token usage:', event.data.usage);
+                    }
+                    break;
+                    
+                case 'error':
+                    console.error('Stream error:', event.data);
+                    streamContent += `\n\n⚠️ Error: ${event.data.message}`;
+                    updateCallback(streamContent);
+                    break;
+                    
+                case 'heartbeat':
+                    // Keep-alive, no action needed
+                    break;
+            }
+        }
+        
+        // UI Helpers
+        function setStreaming(streaming) {
+            isStreaming = streaming;
+            sendBtn.disabled = streaming;
+            messageInput.disabled = streaming;
+            statusDot.classList.toggle('streaming', streaming);
+            setStatus(streaming ? 'Streaming...' : 'Ready');
+        }
+        
+        function setStatus(text) {
+            statusText.textContent = text;
+        }
+        
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatContent(content) {
+            // Simple markdown-like formatting
+            return escapeHtml(content)
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code>$1</code>')
+                .replace(/\n/g, '<br>');
+        }
+        
+        function truncate(text, length) {
+            if (!text) return '';
+            if (text.length <= length) return text;
+            return text.slice(0, length) + '...';
+        }
+        
+        // Initial status
+        setStatus('Ready');
+    </script>
+</body>
+</html>
