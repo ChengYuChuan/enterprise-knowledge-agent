@@ -6,6 +6,8 @@ This module implements hybrid search that combines:
 2. BM25 keyword search (lexical)
 3. Reciprocal Rank Fusion (RRF) for score combination
 4. Optional cross-encoder reranking
+
+FIXED: When alpha=1.0 or alpha=0.0, skip RRF and use raw scores directly.
 """
 
 from typing import Optional
@@ -25,6 +27,11 @@ class HybridRetriever:
     2. BM25 search (keyword matching)
     3. Reciprocal Rank Fusion (RRF) to combine results
     4. Optional reranking with cross-encoder
+    
+    Special cases:
+    - alpha=1.0: Pure vector search (skips RRF, uses raw cosine scores)
+    - alpha=0.0: Pure BM25 search (skips RRF, uses raw BM25 scores)
+    - 0 < alpha < 1: Hybrid with RRF fusion
     
     Attributes:
         vector_store: Vector store for semantic search.
@@ -94,6 +101,70 @@ class HybridRetriever:
             
         Returns:
             list[dict]: Ranked search results.
+        """
+        # Special case: Pure vector search (alpha=1.0)
+        if self.alpha == 1.0:
+            return self._pure_vector_search(query, top_k)
+        
+        # Special case: Pure BM25 search (alpha=0.0)
+        if self.alpha == 0.0:
+            return self._pure_bm25_search(query, top_k)
+        
+        # Standard hybrid search with RRF
+        return self._hybrid_search_with_rrf(query, top_k, retrieve_k)
+    
+    def _pure_vector_search(self, query: str, top_k: int) -> list[dict]:
+        """
+        Pure vector search (bypasses RRF).
+        
+        Returns results with original cosine similarity scores.
+        """
+        query_embedding = self.embedder.embed_text(query)
+        results = self.vector_store.search(
+            query_embedding=query_embedding,
+            top_k=top_k,
+            score_threshold=None,
+        )
+        
+        # Add rank information
+        for rank, result in enumerate(results, start=1):
+            result['rank'] = rank
+            result['vector_rank'] = rank
+            result['bm25_rank'] = None
+            result['vector_score'] = result['score']
+            result['bm25_score'] = 0
+        
+        return results
+    
+    def _pure_bm25_search(self, query: str, top_k: int) -> list[dict]:
+        """
+        Pure BM25 search (bypasses RRF).
+        
+        Returns results with original BM25 scores.
+        """
+        results = self.bm25_search.search(
+            query=query,
+            top_k=top_k,
+        )
+        
+        # Add rank information
+        for rank, result in enumerate(results, start=1):
+            result['rank'] = rank
+            result['vector_rank'] = None
+            result['bm25_rank'] = rank
+            result['vector_score'] = 0
+            result['bm25_score'] = result['score']
+        
+        return results
+    
+    def _hybrid_search_with_rrf(
+        self,
+        query: str,
+        top_k: int,
+        retrieve_k: int,
+    ) -> list[dict]:
+        """
+        Hybrid search with RRF fusion.
         """
         # Step 1: Vector search
         query_embedding = self.embedder.embed_text(query)

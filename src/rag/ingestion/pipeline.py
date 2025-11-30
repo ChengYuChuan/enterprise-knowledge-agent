@@ -10,7 +10,8 @@ from typing import Optional
 
 from src.config import get_settings
 from src.rag.ingestion import ChunkerFactory, LoaderFactory
-from src.rag.retrieval.embedder import MockEmbedder
+# from src.rag.retrieval.embedder import MockEmbedder
+from src.rag.retrieval import get_embedder
 from src.rag.retrieval.vector_store import QdrantVectorStore
 
 
@@ -33,7 +34,7 @@ class IngestionPipeline:
     def __init__(
         self,
         vector_store: Optional[QdrantVectorStore] = None,
-        embedder: Optional[MockEmbedder] = None,
+        embedder: Optional = None,
         chunking_strategy: str = "semantic",
     ) -> None:
         """
@@ -58,8 +59,12 @@ class IngestionPipeline:
             self.vector_store = vector_store
 
         # Initialize embedder (mock for now)
+        # if embedder is None:
+        #     self.embedder = MockEmbedder(dimension=settings.qdrant.vector_size)
+        # else:
+        #     self.embedder = embedder
         if embedder is None:
-            self.embedder = MockEmbedder(dimension=settings.qdrant.vector_size)
+            self.embedder = get_embedder(dimension=settings.qdrant.vector_size)
         else:
             self.embedder = embedder
 
