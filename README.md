@@ -261,15 +261,6 @@ poetry run pytest tests/integration/
 | **Query Latency (p95)** | < 2s | ✅ ~660ms (agent query) |
 | **MCP Tool Success Rate** | > 95% | ✅ 100% (6/6 tests) |
 
-## 📖 Documentation
-
-Comprehensive documentation available in `docs/`:
-
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design and component overview
-- **[FRAMEWORK_EVALUATION.md](docs/FRAMEWORK_EVALUATION.md)** - LangChain vs LlamaIndex analysis
-- **[BEST_PRACTICES.md](docs/BEST_PRACTICES.md)** - AI Agent development guidelines
-- **[PROJECT_BRIEF.md](docs/PROJECT_BRIEF.md)** - Complete development roadmap
-
 ## 🔧 Development
 
 ### Code Quality
