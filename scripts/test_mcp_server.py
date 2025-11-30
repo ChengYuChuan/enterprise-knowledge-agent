@@ -236,6 +236,14 @@ async def main():
     print("🧪"*35)
     print("\nThis will test all MCP server components.\n")
     
+    from src.agent.tools import register_default_tools
+    print("Registering agent tools...")
+    try:
+        register_default_tools()
+        print("✓ Agent tools registered\n")
+    except ValueError:
+        print("✓ Agent tools already registered\n")
+
     # Check knowledge base status first
     from src.agent.tools import GetKnowledgeBaseStatsTool
     

@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 from fastmcp import FastMCP
 
-from src.agent.react import ReActConfig, ReActEngine
+from src.agent.react import ActionExecutor, ReActConfig, ReActEngine
 from src.agent.tools import (
     GetKnowledgeBaseStatsTool,
     QueryKnowledgeBaseTool,
@@ -260,8 +260,14 @@ async def agent_query(
             verbose=False,  # Don't spam logs in production
         )
 
-        # Initialize engine
-        engine = ReActEngine(config=config)
+        # Create action executor (uses global registry by default)
+        action_executor = ActionExecutor(verbose=config.verbose)
+
+        # Initialize engine with the executor
+        engine = ReActEngine(
+            config=config,
+            action_executor=action_executor,
+        )
 
         # Execute query
         trace = await engine.run(query)
@@ -279,6 +285,8 @@ async def agent_query(
 
     except Exception as e:
         logger.error(f"[MCP Tool] Error in agent_query: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             "success": False,
             "error": f"Agent execution failed: {str(e)}",
