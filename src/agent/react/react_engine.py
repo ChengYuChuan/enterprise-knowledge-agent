@@ -8,7 +8,7 @@ coordinating thought generation, action execution, and observation processing.
 import time
 from typing import Optional
 
-from src.agent.router import QueryRouter, RouteDecision
+from src.agent.router import QueryRouter, RouteDecision, RoutingStrategy
 
 from .action_executor import ActionExecutor
 from .base import (
