@@ -1,0 +1,150 @@
+# =============================================================================
+# Observability Configuration
+# =============================================================================
+# This file configures all observability components for the Knowledge Agent.
+# Environment variables can override these settings with the prefix OBSERVABILITY_.
+#
+# Example: OBSERVABILITY_PHOENIX_ENABLED=false
+
+# -----------------------------------------------------------------------------
+# General Settings
+# -----------------------------------------------------------------------------
+service_name: "enterprise-knowledge-agent"
+environment: "development"  # development, staging, production
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+
+# -----------------------------------------------------------------------------
+# Arize Phoenix Configuration (LLM Tracing)
+# -----------------------------------------------------------------------------
+phoenix:
+  enabled: true
+  endpoint: "http://localhost:6006"
+  project_name: "knowledge-agent"
+  
+  # Trace sampling (1.0 = 100% of traces)
+  sample_rate: 1.0
+  
+  # What to trace
+  trace_llm_calls: true
+  trace_retrieval: true
+  trace_embeddings: true
+  trace_reranking: true
+  
+  # Data retention (for local Phoenix instance)
+  max_traces: 10000
+  
+  # Export settings
+  export_batch_size: 100
+  export_timeout_seconds: 30
+
+# -----------------------------------------------------------------------------
+# Prometheus Metrics Configuration
+# -----------------------------------------------------------------------------
+prometheus:
+  enabled: true
+  namespace: "knowledge_agent"
+  
+  # Metrics endpoint
+  endpoint_path: "/metrics"
+  
+  # Default histogram buckets
+  latency_buckets:
+    - 0.005   # 5ms
+    - 0.01    # 10ms
+    - 0.025   # 25ms
+    - 0.05    # 50ms
+    - 0.1     # 100ms
+    - 0.25    # 250ms
+    - 0.5     # 500ms
+    - 1.0     # 1s
+    - 2.5     # 2.5s
+    - 5.0     # 5s
+    - 10.0    # 10s
+  
+  # Token count buckets
+  token_buckets:
+    - 10
+    - 50
+    - 100
+    - 250
+    - 500
+    - 1000
+    - 2000
+    - 4000
+    - 8000
+
+# -----------------------------------------------------------------------------
+# Ragas Evaluation Configuration
+# -----------------------------------------------------------------------------
+evaluation:
+  # LLM for evaluation (uses more capable model for accurate assessment)
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+  
+  # Embedding model for similarity metrics
+  embedding_model: "text-embedding-3-small"
+  
+  # Default metrics to compute
+  default_metrics:
+    - faithfulness
+    - answer_relevance
+    - context_relevance
+    - context_precision
+  
+  # Quality thresholds (for pass/fail determination)
+  thresholds:
+    faithfulness: 0.85
+    answer_relevance: 0.80
+    context_relevance: 0.75
+    context_precision: 0.75
+    context_recall: 0.70
+    answer_similarity: 0.80
+
+# -----------------------------------------------------------------------------
+# Benchmark Configuration
+# -----------------------------------------------------------------------------
+benchmarks:
+  # Default scenarios
+  default_warmup_iterations: 10
+  default_num_iterations: 100
+  default_timeout_seconds: 30
+  
+  # Throughput testing
+  default_concurrency: 10
+  max_concurrency: 100
+  
+  # Resource monitoring
+  collect_resource_metrics: true
+  resource_sample_interval_seconds: 1.0
+  
+  # SLA thresholds (for pass/fail)
+  sla:
+    p50_latency_ms: 500
+    p95_latency_ms: 1000
+    p99_latency_ms: 2000
+    error_rate_threshold: 0.05
+
+# -----------------------------------------------------------------------------
+# Alerting Configuration (for future integration)
+# -----------------------------------------------------------------------------
+alerts:
+  enabled: false
+  
+  # Slack integration
+  slack:
+    webhook_url: ""
+    channel: "#knowledge-agent-alerts"
+  
+  # Alert rules
+  rules:
+    - name: "high_error_rate"
+      condition: "error_rate > 0.05"
+      severity: "critical"
+    
+    - name: "high_latency"
+      condition: "p99_latency_ms > 5000"
+      severity: "warning"
+    
+    - name: "low_faithfulness"
+      condition: "faithfulness < 0.7"
+      severity: "warning"
