@@ -31,6 +31,7 @@ class QdrantVectorStore:
         api_key: Optional[str] = None,
         collection_name: str = "knowledge_base",
         vector_size: int = 1536,  # OpenAI text-embedding-3-small dimension
+        timeout: int = 60,
     ) -> None:
         """
         Initialize the Qdrant vector store.
@@ -41,7 +42,7 @@ class QdrantVectorStore:
             collection_name: Name of the collection.
             vector_size: Dimension of embedding vectors.
         """
-        self.client = QdrantClient(url=url, api_key=api_key)
+        self.client = QdrantClient(url=url, api_key=api_key, timeout=timeout) 
         self.collection_name = collection_name
         self.vector_size = vector_size
 

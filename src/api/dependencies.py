@@ -266,12 +266,11 @@ class RAGPipeline:
         self._ensure_initialized()
         
         from src.rag.types import Chunk
-        import hashlib
+        from uuid import uuid4
         
         # Create a chunk from the text
-        chunk_id = hashlib.md5(content.encode()).hexdigest()[:12]
         chunk = Chunk(
-            chunk_id=chunk_id,
+            chunk_id=str(uuid4()),  # UUID
             text=content,
             metadata=metadata or {"filename": filename},
             start_char=0,
@@ -286,16 +285,37 @@ class RAGPipeline:
         
         # Index for BM25
         self._retriever.index_for_bm25([{
-            "chunk_id": chunk_id,
+            "chunk_id": chunk.chunk_id,
             "text": content,
             "metadata": metadata or {"filename": filename},
         }])
         
         return {
-            "document_id": chunk_id,
+            "document_id": chunk.chunk_id,
             "chunks_created": 1,
             "filename": filename,
         }
+    
+    async def query(self, query: str, top_k: int = 5) -> dict:
+        """Query the knowledge base and return formatted results for chat."""
+        self._ensure_initialized()
+        
+        # Use existing search method
+        results = self._retriever.search(query=query, top_k=top_k)
+        
+        # Format results for chat
+        sources = []
+        for i, result in enumerate(results):
+            sources.append({
+                "document_id": f"doc_{i}",
+                "chunk_id": result.get("chunk_id", ""),
+                "filename": result.get("metadata", {}).get("filename", "unknown"),
+                "content": result.get("text", ""),
+                "score": result.get("score", 0.0),
+                "metadata": result.get("metadata", {}),
+            })
+        
+        return {"sources": sources} 
     
     def get_stats(self) -> dict:
         """Get RAG pipeline statistics."""

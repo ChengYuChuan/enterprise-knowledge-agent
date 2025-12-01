@@ -87,6 +87,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     
     logger.info("API startup complete")
     
+    logger.info("Pre-initializing RAG pipeline...")
+    from src.api.dependencies import get_rag_pipeline
+    rag = await get_rag_pipeline()
+    rag._ensure_initialized()
+    logger.info("RAG pipeline ready")
+
     yield  # Application runs here
     
     # Shutdown
