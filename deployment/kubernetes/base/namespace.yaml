@@ -1,0 +1,23 @@
+# =============================================================================
+# Kubernetes Namespace
+# =============================================================================
+# Creates a dedicated namespace for the Knowledge Agent application
+# 
+# Benefits of using a namespace:
+#   - Resource isolation
+#   - RBAC scoping
+#   - Resource quota management
+#   - Network policy boundaries
+# =============================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: knowledge-agent
+  labels:
+    app.kubernetes.io/name: knowledge-agent
+    app.kubernetes.io/component: namespace
+    app.kubernetes.io/managed-by: kustomize
+  annotations:
+    # Description for documentation
+    description: "Enterprise Knowledge Agent - RAG-based AI system"

@@ -1,0 +1,89 @@
+# =============================================================================
+# Persistent Volume Claims
+# =============================================================================
+# Request persistent storage for the application
+#
+# Storage classes vary by cloud provider:
+#   - AWS: gp3, io1, io2
+#   - GCP: standard, ssd
+#   - Azure: managed-premium, managed-standard
+#   - Local: local-path (Rancher), hostpath (dev only)
+#
+# Note: For production, use managed storage services where possible
+# =============================================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledge-agent-data
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: knowledge-agent
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce  # Single node access (use ReadWriteMany for multi-node)
+  
+  # Storage class (comment out to use default)
+  # storageClassName: gp3
+  
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# =============================================================================
+# Qdrant PVC
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qdrant-data
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: qdrant
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# =============================================================================
+# PostgreSQL PVC
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+
+---
+# =============================================================================
+# Redis PVC (optional - for AOF persistence)
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

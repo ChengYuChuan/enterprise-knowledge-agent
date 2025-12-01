@@ -1,0 +1,218 @@
+# =============================================================================
+# Docker Compose - Production Overrides
+# =============================================================================
+# Extends the base docker-compose.yml for production deployment
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Features:
+#   - Security hardening
+#   - Resource limits
+#   - Production logging
+#   - External networks (for reverse proxy integration)
+# =============================================================================
+
+version: "3.8"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Application - Production Mode
+  # ---------------------------------------------------------------------------
+  app:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-enterprise-knowledge-agent}:${IMAGE_TAG:-latest}
+    
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: INFO
+      WORKERS: ${WORKERS:-4}
+      # Security settings
+      DEBUG: "false"
+      # Enable all production features
+      PROMETHEUS_ENABLED: "true"
+      REDIS_ENABLED: "true"
+      POSTGRES_ENABLED: "true"
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/cache
+    
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service,environment"
+
+  # ---------------------------------------------------------------------------
+  # Vector Database - Production
+  # ---------------------------------------------------------------------------
+  qdrant:
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    
+    # Enable API key authentication
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY is required in production}
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Cache - Production
+  # ---------------------------------------------------------------------------
+  redis:
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required in production}
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Database - Production
+  # ---------------------------------------------------------------------------
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+    
+    # Production-ready configuration
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=8MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # File Storage - Production
+  # ---------------------------------------------------------------------------
+  minio:
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required in production}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?MINIO_SECRET_KEY is required in production}
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Prometheus - Production
+  # ---------------------------------------------------------------------------
+  prometheus:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # ---------------------------------------------------------------------------
+  # Grafana - Production
+  # ---------------------------------------------------------------------------
+  grafana:
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required in production}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_COOKIE_SECURE: "true"
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"

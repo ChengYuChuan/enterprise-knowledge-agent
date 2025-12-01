@@ -1,0 +1,176 @@
+# =============================================================================
+# Application Deployment
+# =============================================================================
+# Manages the Knowledge Agent application pods
+#
+# Key features:
+#   - Rolling updates with zero downtime
+#   - Health checks (liveness, readiness, startup)
+#   - Resource limits and requests
+#   - Security context (non-root user)
+#   - Pod anti-affinity for high availability
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-agent
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: knowledge-agent
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  # Number of replicas (overridden by HPA in production)
+  replicas: 2
+  
+  # Pod selection strategy
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: knowledge-agent
+      app.kubernetes.io/component: api
+  
+  # Update strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Maximum number of pods that can be created over desired
+      maxSurge: 1
+      # Maximum number of pods that can be unavailable
+      maxUnavailable: 0
+  
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: knowledge-agent
+        app.kubernetes.io/component: api
+      annotations:
+        # Trigger rolling update when config changes
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+        # Prometheus scraping annotations
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/api/v1/metrics"
+    
+    spec:
+      # Service account for RBAC
+      serviceAccountName: knowledge-agent
+      
+      # Security context for the pod
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      
+      # Pod anti-affinity: spread across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: knowledge-agent
+                topologyKey: kubernetes.io/hostname
+      
+      # Init containers (wait for dependencies)
+      initContainers:
+        - name: wait-for-qdrant
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z qdrant 6333; do echo waiting for qdrant; sleep 2; done']
+      
+      containers:
+        - name: app
+          image: ghcr.io/yourusername/knowledge-agent:latest
+          imagePullPolicy: Always
+          
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          
+          # Environment from ConfigMap and Secrets
+          envFrom:
+            - configMapRef:
+                name: knowledge-agent-config
+            - secretRef:
+                name: knowledge-agent-secrets
+          
+          # Resource management
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          
+          # Security context for container
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          
+          # Volume mounts
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/cache
+            - name: data
+              mountPath: /app/data
+          
+          # Startup probe: gives app time to initialize
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          
+          # Liveness probe: is the app alive?
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          # Readiness probe: is the app ready to serve traffic?
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      
+      # Volumes
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir:
+            sizeLimit: 1Gi
+        - name: data
+          persistentVolumeClaim:
+            claimName: knowledge-agent-data
+
+---
+# =============================================================================
+# Service Account
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: knowledge-agent
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: knowledge-agent

@@ -1,0 +1,55 @@
+# =============================================================================
+# Application Service
+# =============================================================================
+# Exposes the Knowledge Agent application within the cluster
+#
+# Service Types:
+#   - ClusterIP (default): Internal access only
+#   - NodePort: External access via node port
+#   - LoadBalancer: External access via cloud load balancer
+#
+# For production, use Ingress for HTTP(S) traffic management
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-agent
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: knowledge-agent
+    app.kubernetes.io/component: api
+  annotations:
+    # Prometheus service discovery
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+spec:
+  type: ClusterIP
+  
+  selector:
+    app.kubernetes.io/name: knowledge-agent
+    app.kubernetes.io/component: api
+  
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+
+---
+# =============================================================================
+# Headless Service (for StatefulSet-like behavior, if needed)
+# =============================================================================
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: knowledge-agent-headless
+#   namespace: knowledge-agent
+# spec:
+#   type: ClusterIP
+#   clusterIP: None
+#   selector:
+#     app.kubernetes.io/name: knowledge-agent
+#   ports:
+#     - name: http
+#       port: 8000

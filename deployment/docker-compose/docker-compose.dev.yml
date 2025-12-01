@@ -1,0 +1,85 @@
+# =============================================================================
+# Docker Compose - Development Overrides
+# =============================================================================
+# Extends the base docker-compose.yml for local development
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Features:
+#   - Hot reload (source code mounted as volume)
+#   - Dev dependencies
+#   - Debug ports exposed
+#   - Verbose logging
+# =============================================================================
+
+version: "3.8"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Application - Development Mode
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.dev
+    
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: DEBUG
+      # Enable hot reload
+      UVICORN_RELOAD: "true"
+      # Development settings
+      DEBUG: "true"
+      # Disable some production features
+      PROMETHEUS_ENABLED: "false"
+    
+    volumes:
+      # Mount source code for hot reload
+      - ../../src:/app/src:cached
+      - ../../configs:/app/configs:cached
+      - ../../scripts:/app/scripts:cached
+      - ../../tests:/app/tests:cached
+      # Local data persistence
+      - ./data/uploads:/app/data/uploads
+      - ./data/cache:/app/cache
+      - ./logs:/app/logs
+      # Prevent overwriting installed packages
+      - /app/.venv
+    
+    # Override command for development
+    command: >
+      uvicorn src.api.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src
+      --log-level debug
+
+  # ---------------------------------------------------------------------------
+  # Lighter infrastructure for development
+  # ---------------------------------------------------------------------------
+  
+  # Use lighter Redis configuration
+  redis:
+    command: >
+      redis-server
+      --appendonly no
+      --maxmemory 64mb
+      --maxmemory-policy allkeys-lru
+
+  # PostgreSQL with looser security for development
+  postgres:
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+
+  # Skip observability services in development (optional)
+  # Uncomment to disable:
+  # prometheus:
+  #   profiles:
+  #     - observability
+  # 
+  # grafana:
+  #   profiles:
+  #     - observability

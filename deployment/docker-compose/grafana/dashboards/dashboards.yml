@@ -1,0 +1,19 @@
+# =============================================================================
+# Grafana Dashboard Provisioning
+# =============================================================================
+# Auto-load dashboards from the specified directory
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: 'Knowledge Agent Dashboards'
+    orgId: 1
+    folder: 'Knowledge Agent'
+    folderUid: 'knowledge-agent'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

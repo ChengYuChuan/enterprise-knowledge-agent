@@ -1,0 +1,73 @@
+# =============================================================================
+# Enterprise Knowledge Agent - Development Dockerfile
+# =============================================================================
+# Optimized for development with:
+#   - Hot reload (volume mounting)
+#   - Dev dependencies included
+#   - Debug tools
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Notes:
+#   - Source code is mounted as a volume (not copied)
+#   - Changes are reflected immediately without rebuild
+# =============================================================================
+
+ARG PYTHON_VERSION=3.11
+FROM python:${PYTHON_VERSION}-slim-bookworm
+
+# Development mode indicator
+ENV APP_ENV=development \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    # Enable hot reload for uvicorn
+    UVICORN_RELOAD=true
+
+# Install system dependencies (same as production + dev tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build essentials
+    build-essential \
+    gcc \
+    # PDF/Document processing
+    poppler-utils \
+    libmagic1 \
+    # Development tools
+    curl \
+    git \
+    vim \
+    # Process management
+    tini \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+ARG POETRY_VERSION=1.7.1
+RUN pip install "poetry==${POETRY_VERSION}"
+
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install ALL dependencies (including dev dependencies)
+RUN poetry install --no-root
+
+# Note: Source code is mounted via docker-compose volume
+# This allows hot-reload during development
+
+ENV PYTHONPATH=/app \
+    APP_HOST=0.0.0.0 \
+    APP_PORT=8000
+
+EXPOSE 8000
+
+# Use tini for proper signal handling
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+# Default command: run with hot reload
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

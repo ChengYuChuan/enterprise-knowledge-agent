@@ -1,0 +1,331 @@
+# =============================================================================
+# Docker Compose - Enterprise Knowledge Agent
+# =============================================================================
+# Complete local development and testing stack
+#
+# Usage:
+#   # Start all services
+#   docker-compose up -d
+#
+#   # View logs
+#   docker-compose logs -f app
+#
+#   # Stop all services
+#   docker-compose down
+#
+#   # Stop and remove volumes (clean reset)
+#   docker-compose down -v
+#
+# Services:
+#   - app:        Main application (FastAPI)
+#   - qdrant:     Vector database
+#   - redis:      Caching layer
+#   - postgres:   Metadata storage
+#   - minio:      S3-compatible file storage
+#   - phoenix:    LLM tracing (Arize Phoenix)
+#   - prometheus: Metrics collection
+#   - grafana:    Metrics visualization
+# =============================================================================
+
+version: "3.8"
+
+# =============================================================================
+# Named Volumes (persistent data)
+# =============================================================================
+volumes:
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  knowledge-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# =============================================================================
+# Services
+# =============================================================================
+services:
+
+  # ---------------------------------------------------------------------------
+  # Application Service
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile
+    image: enterprise-knowledge-agent:latest
+    container_name: knowledge-agent-app
+    restart: unless-stopped
+    
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    
+    environment:
+      # Application settings
+      APP_ENV: ${APP_ENV:-development}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # LLM Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER:-openai}
+      
+      # Vector DB (Qdrant)
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-knowledge_base}
+      
+      # Cache (Redis)
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_ENABLED: "true"
+      
+      # Database (PostgreSQL)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-knowledge_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-knowledge_agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_ENABLED: "true"
+      
+      # File Storage (MinIO)
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-documents}
+      
+      # Observability
+      PHOENIX_HOST: phoenix
+      PHOENIX_PORT: 6006
+      PROMETHEUS_ENABLED: "true"
+    
+    volumes:
+      # Persistent data directories
+      - ./data/uploads:/app/data/uploads
+      - ./data/cache:/app/cache
+      - ./logs:/app/logs
+    
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # Vector Database - Qdrant
+  # ---------------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: knowledge-agent-qdrant
+    restart: unless-stopped
+    
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      # Uncomment for production with authentication
+      # QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
+    
+    volumes:
+      - qdrant_data:/qdrant/storage
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # Cache - Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: knowledge-agent-redis
+    restart: unless-stopped
+    
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - redis_data:/data
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # Metadata Database - PostgreSQL
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: knowledge-agent-postgres
+    restart: unless-stopped
+    
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-knowledge_agent}
+      POSTGRES_USER: ${POSTGRES_USER:-knowledge_agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Optional: initialization scripts
+      # - ./init-scripts:/docker-entrypoint-initdb.d
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-knowledge_agent} -d ${POSTGRES_DB:-knowledge_agent}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # File Storage - MinIO (S3-compatible)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: knowledge-agent-minio
+    restart: unless-stopped
+    
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minio123}
+    
+    command: server /data --console-address ":9001"
+    
+    volumes:
+      - minio_data:/data
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # LLM Tracing - Arize Phoenix
+  # ---------------------------------------------------------------------------
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: knowledge-agent-phoenix
+    restart: unless-stopped
+    
+    ports:
+      - "${PHOENIX_PORT:-6006}:6006"
+    
+    environment:
+      PHOENIX_PORT: 6006
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # Metrics Collection - Prometheus
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: knowledge-agent-prometheus
+    restart: unless-stopped
+    
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=15d'
+    
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    
+    networks:
+      - knowledge-net
+
+  # ---------------------------------------------------------------------------
+  # Metrics Visualization - Grafana
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: knowledge-agent-grafana
+    restart: unless-stopped
+    
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    
+    depends_on:
+      - prometheus
+    
+    networks:
+      - knowledge-net

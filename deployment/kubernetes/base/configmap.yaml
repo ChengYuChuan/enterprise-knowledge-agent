@@ -1,0 +1,52 @@
+# =============================================================================
+# Application ConfigMap
+# =============================================================================
+# Non-sensitive configuration values for the application
+#
+# Usage in Pod:
+#   envFrom:
+#     - configMapRef:
+#         name: knowledge-agent-config
+#
+# Note: Sensitive values (API keys, passwords) should go in Secrets
+# =============================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knowledge-agent-config
+  namespace: knowledge-agent
+  labels:
+    app.kubernetes.io/name: knowledge-agent
+    app.kubernetes.io/component: config
+data:
+  # Application settings
+  APP_ENV: "production"
+  APP_HOST: "0.0.0.0"
+  APP_PORT: "8000"
+  LOG_LEVEL: "INFO"
+  WORKERS: "4"
+  
+  # Service discovery (Kubernetes DNS)
+  QDRANT_HOST: "qdrant.knowledge-agent.svc.cluster.local"
+  QDRANT_PORT: "6333"
+  QDRANT_COLLECTION: "knowledge_base"
+  
+  REDIS_HOST: "redis.knowledge-agent.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_ENABLED: "true"
+  
+  POSTGRES_HOST: "postgres.knowledge-agent.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "knowledge_agent"
+  POSTGRES_ENABLED: "true"
+  
+  # LLM configuration
+  DEFAULT_LLM_PROVIDER: "openai"
+  DEFAULT_EMBEDDING_MODEL: "text-embedding-3-small"
+  DEFAULT_CHAT_MODEL: "gpt-4o-mini"
+  
+  # Observability
+  PROMETHEUS_ENABLED: "true"
+  PHOENIX_HOST: "phoenix.knowledge-agent.svc.cluster.local"
+  PHOENIX_PORT: "6006"

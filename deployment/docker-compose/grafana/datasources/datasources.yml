@@ -1,0 +1,38 @@
+# =============================================================================
+# Grafana Datasource Provisioning
+# =============================================================================
+# Auto-configure data sources when Grafana starts
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  # ---------------------------------------------------------------------------
+  # Prometheus (Primary metrics source)
+  # ---------------------------------------------------------------------------
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: "15s"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (Optional - for SQL-based dashboards)
+  # ---------------------------------------------------------------------------
+  # - name: PostgreSQL
+  #   type: postgres
+  #   access: proxy
+  #   url: postgres:5432
+  #   database: knowledge_agent
+  #   user: knowledge_agent
+  #   secureJsonData:
+  #     password: ${POSTGRES_PASSWORD}
+  #   jsonData:
+  #     sslmode: disable
+  #     maxOpenConns: 5
+  #     maxIdleConns: 2
+  #     connMaxLifetime: 14400

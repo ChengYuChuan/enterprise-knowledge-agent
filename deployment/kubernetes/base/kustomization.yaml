@@ -1,0 +1,91 @@
+# =============================================================================
+# Kustomize Production Overlay
+# =============================================================================
+# Production-specific customizations:
+#   - Increased replicas
+#   - Higher resource limits
+#   - Production image tag
+#   - TLS configuration
+#
+# Usage:
+#   kubectl apply -k deployment/kubernetes/overlays/production
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base configuration
+resources:
+  - ../../base
+
+# Production namespace suffix (optional)
+# nameSuffix: -prod
+
+# Production labels
+commonLabels:
+  environment: production
+
+# Production annotations
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"
+
+# Image customization for production
+images:
+  - name: ghcr.io/yourusername/knowledge-agent
+    newTag: v1.0.0  # Use specific version in production
+
+# Patches for production-specific changes
+patches:
+  # Increase replicas for production
+  - target:
+      kind: Deployment
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "1000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "2Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "8Gi"
+
+  # Update HPA for production
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+
+  # Update Ingress host for production
+  - target:
+      kind: Ingress
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: api.knowledge-agent.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: api.knowledge-agent.com
+
+# ConfigMap patches for production
+configMapGenerator:
+  - name: knowledge-agent-config
+    behavior: merge
+    literals:
+      - APP_ENV=production
+      - LOG_LEVEL=INFO
+      - WORKERS=8

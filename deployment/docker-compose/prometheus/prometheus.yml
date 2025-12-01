@@ -1,0 +1,104 @@
+# =============================================================================
+# Prometheus Configuration
+# =============================================================================
+# Metrics collection configuration for Enterprise Knowledge Agent
+#
+# Scrape targets:
+#   - Application metrics (FastAPI)
+#   - Qdrant metrics
+#   - Redis metrics (via exporter)
+#   - PostgreSQL metrics (via exporter)
+# =============================================================================
+
+global:
+  scrape_interval: 15s      # How often to scrape targets
+  evaluation_interval: 15s  # How often to evaluate rules
+  
+  # Attach these labels to any time series or alerts
+  external_labels:
+    monitor: 'knowledge-agent'
+    environment: 'development'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Rule files (optional)
+# rule_files:
+#   - "alert_rules.yml"
+#   - "recording_rules.yml"
+
+# =============================================================================
+# Scrape Configurations
+# =============================================================================
+scrape_configs:
+
+  # ---------------------------------------------------------------------------
+  # Prometheus self-monitoring
+  # ---------------------------------------------------------------------------
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scheme: http
+
+  # ---------------------------------------------------------------------------
+  # Application Metrics (FastAPI)
+  # ---------------------------------------------------------------------------
+  - job_name: 'knowledge-agent-app'
+    static_configs:
+      - targets: ['app:8000']
+        labels:
+          service: 'api'
+          component: 'application'
+    metrics_path: /api/v1/metrics
+    scheme: http
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # ---------------------------------------------------------------------------
+  # Qdrant Vector Database
+  # ---------------------------------------------------------------------------
+  - job_name: 'qdrant'
+    static_configs:
+      - targets: ['qdrant:6333']
+        labels:
+          service: 'qdrant'
+          component: 'vector-db'
+    metrics_path: /metrics
+    scheme: http
+
+  # ---------------------------------------------------------------------------
+  # Redis (requires redis_exporter sidecar)
+  # ---------------------------------------------------------------------------
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #       labels:
+  #         service: 'redis'
+  #         component: 'cache'
+  #   metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL (requires postgres_exporter sidecar)
+  # ---------------------------------------------------------------------------
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
+  #       labels:
+  #         service: 'postgres'
+  #         component: 'database'
+  #   metrics_path: /metrics
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter (for host metrics, if deployed)
+  # ---------------------------------------------------------------------------
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #       labels:
+  #         service: 'node'
+  #         component: 'infrastructure'
