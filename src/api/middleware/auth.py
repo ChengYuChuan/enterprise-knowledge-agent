@@ -31,11 +31,16 @@ import secrets
 from typing import Optional, Annotated
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
 from fastapi import Request, HTTPException, Security, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 import logging
+
+# Load environment variables from .env file BEFORE any config is read
+# This must happen before AuthConfig is instantiated at module level
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

@@ -237,13 +237,17 @@ class RAGPipeline:
             dimension=app_settings.qdrant.vector_size,
         )
         
-        # Initialize hybrid retriever
+        # Initialize hybrid retriever with balanced alpha
         self._retriever = HybridRetriever(
             vector_store=self._vector_store,
             embedder=self._embedder,
-            alpha=0.5,  # Balanced hybrid search
+            alpha=0.5,  # Balanced hybrid search (vector + BM25)
             use_reranking=False,
         )
+        
+        # Sync BM25 index from existing Qdrant data
+        # This ensures hybrid search works even after server restart
+        self._sync_bm25_from_qdrant()
         
         # Initialize ingestion pipeline
         self._ingestion = IngestionPipeline(
@@ -252,6 +256,51 @@ class RAGPipeline:
         )
         
         self._initialized = True
+    
+    def _sync_bm25_from_qdrant(self) -> None:
+        """
+        Sync BM25 index from existing Qdrant data.
+        
+        This method scrolls through all points in Qdrant and indexes them
+        for BM25 search, ensuring hybrid retrieval works properly.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Scroll through all points in Qdrant
+            all_chunks = []
+            offset = None
+            
+            while True:
+                results, offset = self._vector_store.client.scroll(
+                    collection_name=self._vector_store.collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                
+                for point in results:
+                    payload = point.payload or {}
+                    all_chunks.append({
+                        "chunk_id": str(point.id),
+                        "text": payload.get("text", ""),
+                        "metadata": payload.get("metadata", {}),
+                    })
+                
+                if offset is None:
+                    break
+            
+            # Index for BM25 if we have chunks
+            if all_chunks:
+                self._retriever.index_for_bm25(all_chunks)
+                logger.info(f"BM25 index synced with {len(all_chunks)} chunks from Qdrant")
+            else:
+                logger.warning("No chunks found in Qdrant, BM25 index is empty")
+                
+        except Exception as e:
+            logger.error(f"Failed to sync BM25 index from Qdrant: {e}")
     
     async def search(self, query: str, top_k: int = 10) -> list:
         """Search documents using hybrid retrieval."""

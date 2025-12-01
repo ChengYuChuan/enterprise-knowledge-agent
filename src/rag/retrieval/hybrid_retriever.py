@@ -165,6 +165,8 @@ class HybridRetriever:
     ) -> list[dict]:
         """
         Hybrid search with RRF fusion.
+        
+        Gracefully handles empty BM25 index by falling back to pure vector search.
         """
         # Step 1: Vector search
         query_embedding = self.embedder.embed_text(query)
@@ -174,11 +176,27 @@ class HybridRetriever:
             score_threshold=None,
         )
         
-        # Step 2: BM25 search
-        bm25_results = self.bm25_search.search(
-            query=query,
-            top_k=retrieve_k,
-        )
+        # Step 2: BM25 search (with graceful fallback)
+        bm25_results = []
+        try:
+            bm25_results = self.bm25_search.search(
+                query=query,
+                top_k=retrieve_k,
+            )
+        except ValueError:
+            # BM25 index is empty - fall back to pure vector search
+            import logging
+            logging.getLogger(__name__).debug(
+                "BM25 index empty, falling back to pure vector search"
+            )
+            # Return vector results directly with proper formatting
+            for rank, result in enumerate(vector_results[:top_k], start=1):
+                result['rank'] = rank
+                result['vector_rank'] = rank
+                result['bm25_rank'] = None
+                result['vector_score'] = result['score']
+                result['bm25_score'] = 0
+            return vector_results[:top_k]
         
         # Step 3: Reciprocal Rank Fusion (RRF)
         fused_results = self._reciprocal_rank_fusion(
