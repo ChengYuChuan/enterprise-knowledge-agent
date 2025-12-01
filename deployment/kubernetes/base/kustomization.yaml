@@ -1,91 +1,64 @@
 # =============================================================================
-# Kustomize Production Overlay
+# Kustomize Base Configuration
 # =============================================================================
-# Production-specific customizations:
-#   - Increased replicas
-#   - Higher resource limits
-#   - Production image tag
-#   - TLS configuration
+# Base Kubernetes manifests for the Enterprise Knowledge Agent
+#
+# This base is referenced by overlay environments:
+#   - development
+#   - staging  
+#   - production
 #
 # Usage:
-#   kubectl apply -k deployment/kubernetes/overlays/production
+#   # Preview base manifests
+#   kubectl kustomize deployment/kubernetes/base
+#
+#   # Apply with overlay
+#   kubectl apply -k deployment/kubernetes/overlays/staging
 # =============================================================================
 
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Reference the base configuration
-resources:
-  - ../../base
+# Namespace for all resources
+namespace: knowledge-agent
 
-# Production namespace suffix (optional)
-# nameSuffix: -prod
-
-# Production labels
+# Common labels applied to all resources
 commonLabels:
-  environment: production
+  app.kubernetes.io/name: knowledge-agent
+  app.kubernetes.io/part-of: enterprise-knowledge-platform
+  app.kubernetes.io/managed-by: kustomize
 
-# Production annotations
+# Common annotations
 commonAnnotations:
-  deployment.kubernetes.io/revision: "1"
+  app.kubernetes.io/description: "AI-powered enterprise knowledge management system"
 
-# Image customization for production
+# Resources to include (order matters for dependencies)
+resources:
+  # Namespace must come first
+  - namespace.yaml
+  # Storage resources
+  - pvc.yaml
+  # Configuration
+  - configmap.yaml
+  - secrets.yaml
+  # Infrastructure services (Qdrant, Redis, PostgreSQL)
+  - infrastructure.yaml
+  # Application
+  - deployment.yaml
+  - service.yaml
+  # Networking
+  - ingress.yaml
+  # Autoscaling
+  - hpa.yaml
+
+# ConfigMap generator (optional - for dynamic config)
+# configMapGenerator:
+#   - name: knowledge-agent-config
+#     behavior: merge
+#     literals:
+#       - APP_NAME=knowledge-agent
+
+# Images configuration (can be overridden by overlays)
 images:
   - name: ghcr.io/yourusername/knowledge-agent
-    newTag: v1.0.0  # Use specific version in production
-
-# Patches for production-specific changes
-patches:
-  # Increase replicas for production
-  - target:
-      kind: Deployment
-      name: knowledge-agent
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 3
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/cpu
-        value: "1000m"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/memory
-        value: "2Gi"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/cpu
-        value: "4000m"
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/memory
-        value: "8Gi"
-
-  # Update HPA for production
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: knowledge-agent
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 3
-      - op: replace
-        path: /spec/maxReplicas
-        value: 20
-
-  # Update Ingress host for production
-  - target:
-      kind: Ingress
-      name: knowledge-agent
-    patch: |-
-      - op: replace
-        path: /spec/rules/0/host
-        value: api.knowledge-agent.com
-      - op: replace
-        path: /spec/tls/0/hosts/0
-        value: api.knowledge-agent.com
-
-# ConfigMap patches for production
-configMapGenerator:
-  - name: knowledge-agent-config
-    behavior: merge
-    literals:
-      - APP_ENV=production
-      - LOG_LEVEL=INFO
-      - WORKERS=8
+    newTag: latest

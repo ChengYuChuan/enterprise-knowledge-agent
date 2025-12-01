@@ -1,0 +1,89 @@
+# =============================================================================
+# Kustomize Development Overlay
+# =============================================================================
+# Development-specific customizations:
+#   - Single replica
+#   - Lower resource limits
+#   - Debug logging enabled
+#   - Local image tags
+#
+# Usage:
+#   kubectl apply -k deployment/kubernetes/overlays/development
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base configuration
+resources:
+  - ../../base
+
+# Development-specific labels
+commonLabels:
+  environment: development
+
+# Development annotations
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"
+  note: "Development environment - not for production use"
+
+# Image customization for development
+images:
+  - name: ghcr.io/yourusername/knowledge-agent
+    newTag: dev  # Use dev tag in development
+
+# Patches for development-specific changes
+patches:
+  # Reduce replicas for development
+  - target:
+      kind: Deployment
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "256Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "1Gi"
+
+  # Disable HPA in development
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+
+  # Update Ingress host for development
+  - target:
+      kind: Ingress
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dev.knowledge-agent.local
+      - op: remove
+        path: /spec/tls
+
+# ConfigMap patches for development
+configMapGenerator:
+  - name: knowledge-agent-config
+    behavior: merge
+    literals:
+      - APP_ENV=development
+      - LOG_LEVEL=DEBUG
+      - DEBUG=true
+      - WORKERS=1

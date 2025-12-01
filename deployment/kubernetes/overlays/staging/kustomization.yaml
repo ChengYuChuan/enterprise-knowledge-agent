@@ -1,0 +1,90 @@
+# =============================================================================
+# Kustomize Staging Overlay
+# =============================================================================
+# Staging-specific customizations:
+#   - Production-like configuration
+#   - Moderate resource allocation
+#   - Staging domain
+#   - Used for pre-production testing
+#
+# Usage:
+#   kubectl apply -k deployment/kubernetes/overlays/staging
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base configuration
+resources:
+  - ../../base
+
+# Staging-specific labels
+commonLabels:
+  environment: staging
+
+# Staging annotations
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"
+  note: "Staging environment - pre-production testing"
+
+# Image customization for staging
+images:
+  - name: ghcr.io/yourusername/knowledge-agent
+    newTag: staging  # Use staging tag
+
+# Patches for staging-specific changes
+patches:
+  # Moderate replicas for staging
+  - target:
+      kind: Deployment
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1000m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "2Gi"
+
+  # HPA settings for staging
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 5
+
+  # Update Ingress host for staging
+  - target:
+      kind: Ingress
+      name: knowledge-agent
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: staging.knowledge-agent.example.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: staging.knowledge-agent.example.com
+
+# ConfigMap patches for staging
+configMapGenerator:
+  - name: knowledge-agent-config
+    behavior: merge
+    literals:
+      - APP_ENV=staging
+      - LOG_LEVEL=INFO
+      - DEBUG=false
+      - WORKERS=4
