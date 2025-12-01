@@ -41,6 +41,7 @@ poetry.lock
 .env
 .env.local
 .env.*.local
+.env.secrets
 
 # Testing
 .pytest_cache/
@@ -83,4 +84,4 @@ tmp/
 # Secrets
 secrets/
 *.pem
-*.key
+*.key.env.secrets

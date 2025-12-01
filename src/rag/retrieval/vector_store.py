@@ -115,18 +115,7 @@ class QdrantVectorStore:
     ) -> list[dict]:
         """
         Search for similar chunks using vector similarity.
-
-        Args:
-            query_embedding: Query vector.
-            top_k: Number of results to return.
-            score_threshold: Minimum similarity score (0-1).
-            filters: Optional metadata filters (not implemented yet).
-
-        Returns:
-            list[dict]: List of search results with text, metadata, and score.
         """
-        from qdrant_client.models import SearchRequest
-
         search_results = self.client.query_points(
             collection_name=self.collection_name,
             query=query_embedding,

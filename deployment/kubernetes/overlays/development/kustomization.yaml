@@ -10,7 +10,6 @@
 # Usage:
 #   kubectl apply -k deployment/kubernetes/overlays/development
 # =============================================================================
-
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -18,9 +17,11 @@ kind: Kustomization
 resources:
   - ../../base
 
-# Development-specific labels
-commonLabels:
-  environment: development
+# Development-specific labels (new syntax - replaces deprecated commonLabels)
+labels:
+  - pairs:
+      environment: development
+    includeSelectors: true
 
 # Development annotations
 commonAnnotations:
@@ -28,13 +29,15 @@ commonAnnotations:
   note: "Development environment - not for production use"
 
 # Image customization for development
+# Use local image built with: docker build -t knowledge-agent:dev
 images:
   - name: ghcr.io/yourusername/knowledge-agent
-    newTag: dev  # Use dev tag in development
+    newName: knowledge-agent
+    newTag: dev
 
-# Patches for development-specific changes
+# All patches combined into one section
 patches:
-  # Reduce replicas for development
+  # Reduce replicas and resources for development
   - target:
       kind: Deployment
       name: knowledge-agent
@@ -54,6 +57,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
         value: "1Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
 
   # Disable HPA in development
   - target:
@@ -78,7 +84,7 @@ patches:
       - op: remove
         path: /spec/tls
 
-patches:
+  # ConfigMap patches for development
   - target:
       kind: ConfigMap
       name: knowledge-agent-config

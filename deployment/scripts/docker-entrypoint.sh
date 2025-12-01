@@ -25,13 +25,14 @@ APP_ENV="${APP_ENV:-production}"
 LOG_LEVEL="${LOG_LEVEL:-INFO}"
 WORKERS="${WORKERS:-4}"
 
-# Service connection settings
-QDRANT_HOST="${QDRANT_HOST:-qdrant}"
-QDRANT_PORT="${QDRANT_PORT:-6333}"
-REDIS_HOST="${REDIS_HOST:-redis}"
-REDIS_PORT="${REDIS_PORT:-6379}"
-POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
-POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+# Service URLs (full URL format to avoid Kubernetes env var conflicts)
+QDRANT_URL="${QDRANT_URL:-http://qdrant:6333}"
+REDIS_URL="${REDIS_URL:-redis://redis:6379}"
+POSTGRES_URL="${POSTGRES_URL:-postgresql://postgres:5432/knowledge_agent}"
+
+# Feature flags
+REDIS_ENABLED="${REDIS_ENABLED:-true}"
+POSTGRES_ENABLED="${POSTGRES_ENABLED:-true}"
 
 # Timeouts (in seconds)
 SERVICE_TIMEOUT="${SERVICE_TIMEOUT:-60}"
@@ -74,6 +75,16 @@ wait_for_service() {
     log_info "${service_name} is available (took ${elapsed}s)"
 }
 
+# Parse host from URL (e.g., http://host:port -> host)
+parse_host_from_url() {
+    echo "$1" | sed -E 's|.*://([^:/]+).*|\1|'
+}
+
+# Parse port from URL (e.g., http://host:port -> port)
+parse_port_from_url() {
+    echo "$1" | sed -E 's|.*:([0-9]+).*|\1|'
+}
+
 # Validate required environment variables
 validate_env() {
     local missing_vars=""
@@ -108,18 +119,24 @@ main() {
     log_info "Step 2/4: Checking dependent services..."
 
     # Qdrant (Vector DB) - Required
-    if [ -n "$QDRANT_HOST" ]; then
-        wait_for_service "$QDRANT_HOST" "$QDRANT_PORT" "Qdrant"
+    if [ -n "$QDRANT_URL" ]; then
+        QDRANT_HOST_PARSED=$(parse_host_from_url "$QDRANT_URL")
+        QDRANT_PORT_PARSED=$(parse_port_from_url "$QDRANT_URL")
+        wait_for_service "$QDRANT_HOST_PARSED" "$QDRANT_PORT_PARSED" "Qdrant"
     fi
 
     # Redis (Cache) - Optional
-    if [ -n "$REDIS_HOST" ] && [ "$REDIS_ENABLED" = "true" ]; then
-        wait_for_service "$REDIS_HOST" "$REDIS_PORT" "Redis"
+    if [ -n "$REDIS_URL" ] && [ "$REDIS_ENABLED" = "true" ]; then
+        REDIS_HOST_PARSED=$(parse_host_from_url "$REDIS_URL")
+        REDIS_PORT_PARSED=$(parse_port_from_url "$REDIS_URL")
+        wait_for_service "$REDIS_HOST_PARSED" "$REDIS_PORT_PARSED" "Redis"
     fi
 
     # PostgreSQL (Metadata) - Optional
-    if [ -n "$POSTGRES_HOST" ] && [ "$POSTGRES_ENABLED" = "true" ]; then
-        wait_for_service "$POSTGRES_HOST" "$POSTGRES_PORT" "PostgreSQL"
+    if [ -n "$POSTGRES_URL" ] && [ "$POSTGRES_ENABLED" = "true" ]; then
+        POSTGRES_HOST_PARSED=$(parse_host_from_url "$POSTGRES_URL")
+        POSTGRES_PORT_PARSED=$(parse_port_from_url "$POSTGRES_URL")
+        wait_for_service "$POSTGRES_HOST_PARSED" "$POSTGRES_PORT_PARSED" "PostgreSQL"
     fi
 
     # Step 3: Run migrations (if applicable)

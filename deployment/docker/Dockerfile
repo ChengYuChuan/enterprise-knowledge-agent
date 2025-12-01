@@ -44,6 +44,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmagic1 \
     # Networking/Health checks
     curl \
+    netcat-openbsd \
     # Process manager (PID 1 handling)
     tini \
     # Cleanup to reduce image size

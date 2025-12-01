@@ -37,6 +37,8 @@ from src.api.dependencies import (
     Settings,
     get_job_queue,
     JobQueue,
+    get_rag_pipeline,
+    RAGPipeline,
 )
 
 router = APIRouter(tags=["Ingest"])
@@ -164,37 +166,40 @@ async def ingest_url(
     summary="Ingest raw text",
     description="Ingest raw text content directly.",
 )
+@router.post(
+    "/ingest/text",
+    response_model=IngestResponse,
+    summary="Ingest raw text",
+    description="Ingest raw text content directly.",
+)
 async def ingest_text(
     request: IngestTextRequest,
     user: User = Depends(get_current_user),
-    job_queue: JobQueue = Depends(get_job_queue),
+    rag: RAGPipeline = Depends(get_rag_pipeline),
     settings: Settings = Depends(get_settings),
     _: None = Depends(rate_limit(requests=20, window=60)),
 ) -> IngestResponse:
-    """Ingest raw text content.
+    """Ingest raw text content."""
+    import uuid
     
-    Useful for:
-    - Pasting content directly
-    - API integrations
-    - Text that doesn't come from files
-    """
-    # Queue the ingestion job
-    job_id = await job_queue.enqueue(
-        job_type="ingest_text",
-        data={
-            "content": request.content,
-            "filename": request.filename,
-            "metadata": request.metadata.model_dump() if request.metadata else None,
-            "config": request.config.model_dump() if request.config else None,
-            "user_id": user.id,
-        }
-    )
-    
-    return IngestResponse(
-        job_id=job_id,
-        status=StatusEnum.PENDING,
-        message=f"Text '{request.filename}' queued for processing",
-    )
+    try:
+        result = await rag.ingest_text(
+            content=request.content,
+            filename=request.filename,
+            metadata=request.metadata.model_dump() if request.metadata else None,
+        )
+        
+        return IngestResponse(
+            job_id=f"job_{uuid.uuid4().hex[:12]}",
+            status=StatusEnum.COMPLETED,
+            message=f"Text '{request.filename}' ingested successfully. Document ID: {result['document_id']}",
+        )
+    except Exception as e:
+        return IngestResponse(
+            job_id=f"job_{uuid.uuid4().hex[:12]}",
+            status=StatusEnum.FAILED,
+            message=f"Ingestion failed: {str(e)}",
+        )
 
 
 # =============================================================================

@@ -197,36 +197,116 @@ async def get_llm_provider_for_request(
 
 
 # =============================================================================
-# RAG Pipeline Dependencies (Placeholder)
+# RAG Pipeline Dependencies
 # =============================================================================
 
-# These will be implemented when integrating with the RAG pipeline from Phase 1-2
+from src.rag.ingestion.pipeline import IngestionPipeline
+from src.rag.retrieval.vector_store import QdrantVectorStore
+from src.rag.retrieval.hybrid_retriever import HybridRetriever
+from src.rag.retrieval.openai_embedder import OpenAIEmbedder
+from src.config import get_settings as get_app_settings
+
 
 class RAGPipeline:
-    """Placeholder for RAG pipeline dependency."""
+    """RAG pipeline for search and ingestion."""
     
-    async def query(self, query: str, top_k: int = 5) -> dict:
-        """Query the knowledge base."""
-        # TODO: Implement with actual RAG pipeline
-        return {
-            "answer": "RAG pipeline not yet integrated",
-            "sources": [],
-        }
+    def __init__(self):
+        self._initialized = False
+        self._vector_store: Optional[QdrantVectorStore] = None
+        self._embedder: Optional[OpenAIEmbedder] = None
+        self._retriever: Optional[HybridRetriever] = None
+        self._ingestion: Optional[IngestionPipeline] = None
+    
+    def _ensure_initialized(self):
+        """Lazy initialization of RAG components."""
+        if self._initialized:
+            return
+        
+        app_settings = get_app_settings()
+        
+        # Initialize vector store
+        self._vector_store = QdrantVectorStore(
+            url=app_settings.qdrant.url,
+            api_key=app_settings.qdrant.api_key,
+            collection_name=app_settings.qdrant.collection_name,
+            vector_size=app_settings.qdrant.vector_size,
+        )
+        
+        # Initialize embedder
+        self._embedder = OpenAIEmbedder(
+            dimension=app_settings.qdrant.vector_size,
+        )
+        
+        # Initialize hybrid retriever
+        self._retriever = HybridRetriever(
+            vector_store=self._vector_store,
+            embedder=self._embedder,
+            alpha=0.5,  # Balanced hybrid search
+            use_reranking=False,
+        )
+        
+        # Initialize ingestion pipeline
+        self._ingestion = IngestionPipeline(
+            vector_store=self._vector_store,
+            embedder=self._embedder,
+        )
+        
+        self._initialized = True
     
     async def search(self, query: str, top_k: int = 10) -> list:
-        """Search documents."""
-        # TODO: Implement with actual RAG pipeline
-        return []
-
+        """Search documents using hybrid retrieval."""
+        self._ensure_initialized()
+        
+        # HybridRetriever.search is synchronous
+        results = self._retriever.search(query=query, top_k=top_k)
+        return results
+    
+    async def ingest_text(self, content: str, filename: str, metadata: dict = None) -> dict:
+        """Ingest text content."""
+        self._ensure_initialized()
+        
+        from src.rag.types import Chunk
+        import hashlib
+        
+        # Create a chunk from the text
+        chunk_id = hashlib.md5(content.encode()).hexdigest()[:12]
+        chunk = Chunk(
+            chunk_id=chunk_id,
+            text=content,
+            metadata=metadata or {"filename": filename},
+            start_char=0,
+            end_char=len(content),
+        )
+        
+        # Generate embedding
+        embedding = self._embedder.embed_text(content)
+        
+        # Store in vector database
+        self._vector_store.upsert_chunks([chunk], [embedding])
+        
+        # Index for BM25
+        self._retriever.index_for_bm25([{
+            "chunk_id": chunk_id,
+            "text": content,
+            "metadata": metadata or {"filename": filename},
+        }])
+        
+        return {
+            "document_id": chunk_id,
+            "chunks_created": 1,
+            "filename": filename,
+        }
+    
+    def get_stats(self) -> dict:
+        """Get RAG pipeline statistics."""
+        self._ensure_initialized()
+        return self._vector_store.get_collection_info()
+    
 
 _rag_pipeline: Optional[RAGPipeline] = None
 
-
 async def get_rag_pipeline() -> RAGPipeline:
-    """Get the RAG pipeline instance.
-    
-    TODO: Replace with actual RAG pipeline initialization.
-    """
+    """Get the RAG pipeline instance."""
     global _rag_pipeline
     if _rag_pipeline is None:
         _rag_pipeline = RAGPipeline()

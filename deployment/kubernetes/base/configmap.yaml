@@ -10,7 +10,6 @@
 #
 # Note: Sensitive values (API keys, passwords) should go in Secrets
 # =============================================================================
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -27,18 +26,14 @@ data:
   LOG_LEVEL: "INFO"
   WORKERS: "4"
   
-  # Service discovery (Kubernetes DNS)
-  QDRANT_HOST: "qdrant.knowledge-agent.svc.cluster.local"
-  QDRANT_PORT: "6333"
-  QDRANT_COLLECTION: "knowledge_base"
+  # Service URLs (use full URL to avoid Kubernetes env var conflicts)
+  QDRANT_URL: "http://qdrant:6333"
+  QDRANT_COLLECTION_NAME: "knowledge_base"
   
-  REDIS_HOST: "redis.knowledge-agent.svc.cluster.local"
-  REDIS_PORT: "6379"
+  REDIS_URL: "redis://redis:6379"
   REDIS_ENABLED: "true"
   
-  POSTGRES_HOST: "postgres.knowledge-agent.svc.cluster.local"
-  POSTGRES_PORT: "5432"
-  POSTGRES_DB: "knowledge_agent"
+  POSTGRES_URL: "postgresql://postgres:5432/knowledge_agent"
   POSTGRES_ENABLED: "true"
   
   # LLM configuration
@@ -48,5 +43,4 @@ data:
   
   # Observability
   PROMETHEUS_ENABLED: "true"
-  PHOENIX_HOST: "phoenix.knowledge-agent.svc.cluster.local"
-  PHOENIX_PORT: "6006"
+  PHOENIX_ENABLED: "false"
