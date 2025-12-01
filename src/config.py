@@ -45,6 +45,34 @@ class RetrievalSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RETRIEVAL_")
 
 
+class ObservabilitySettings(BaseSettings):
+    """Observability configuration (tracing, metrics, evaluation)."""
+
+    # Phoenix tracing (disabled by default for local development)
+    phoenix_enabled: bool = Field(
+        default=False, 
+        description="Enable Phoenix tracing (requires Phoenix server at phoenix_endpoint)"
+    )
+    phoenix_endpoint: str = Field(
+        default="http://localhost:6006", 
+        description="Phoenix server endpoint"
+    )
+    
+    # Prometheus metrics
+    prometheus_enabled: bool = Field(
+        default=True, 
+        description="Enable Prometheus metrics collection"
+    )
+    
+    # Service identification
+    service_name: str = Field(
+        default="enterprise-knowledge-agent",
+        description="Service name for tracing and metrics"
+    )
+
+    model_config = SettingsConfigDict(env_prefix="OBSERVABILITY_")
+
+
 class AppSettings(BaseSettings):
     """Main application settings."""
 
@@ -58,6 +86,7 @@ class AppSettings(BaseSettings):
     qdrant: QdrantSettings = Field(default_factory=QdrantSettings)
     chunking: ChunkingSettings = Field(default_factory=ChunkingSettings)
     retrieval: RetrievalSettings = Field(default_factory=RetrievalSettings)
+    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     model_config = SettingsConfigDict(
         env_file=".env",

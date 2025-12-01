@@ -144,28 +144,31 @@ def _initialize_tracer() -> Tracer:
     
     Returns:
         Configured Tracer instance.
+        
+    Configuration:
+        Phoenix tracing is disabled by default for local development.
+        To enable, set environment variable: OBSERVABILITY_PHOENIX_ENABLED=true
     """
     try:
         from src.config import get_settings
         settings = get_settings()
         
-        # Check if Phoenix is enabled
-        phoenix_enabled = getattr(settings, "phoenix_enabled", True)
+        # Check if Phoenix is enabled via nested observability settings
+        # Default: False for local development (no Phoenix server required)
+        obs_settings = getattr(settings, "observability", None)
+        if obs_settings:
+            phoenix_enabled = getattr(obs_settings, "phoenix_enabled", False)
+            phoenix_endpoint = getattr(obs_settings, "phoenix_endpoint", "http://localhost:6006")
+            service_name = getattr(obs_settings, "service_name", "enterprise-knowledge-agent")
+        else:
+            # Fallback for older config without observability section
+            phoenix_enabled = getattr(settings, "phoenix_enabled", False)
+            phoenix_endpoint = getattr(settings, "phoenix_endpoint", "http://localhost:6006")
+            service_name = getattr(settings, "service_name", "enterprise-knowledge-agent")
         
         if phoenix_enabled:
             try:
                 from src.observability.tracing.phoenix import PhoenixTracer
-                
-                phoenix_endpoint = getattr(
-                    settings, 
-                    "phoenix_endpoint", 
-                    "http://localhost:6006"
-                )
-                service_name = getattr(
-                    settings,
-                    "service_name",
-                    "enterprise-knowledge-agent"
-                )
                 
                 return PhoenixTracer(
                     endpoint=phoenix_endpoint,
@@ -199,23 +202,28 @@ def _initialize_metrics() -> MetricsCollector:
     
     Returns:
         Configured MetricsCollector instance.
+        
+    Configuration:
+        Prometheus metrics are enabled by default.
+        To disable, set environment variable: OBSERVABILITY_PROMETHEUS_ENABLED=false
     """
     try:
         from src.config import get_settings
         settings = get_settings()
         
-        # Check if Prometheus is enabled
-        prometheus_enabled = getattr(settings, "prometheus_enabled", True)
+        # Check if Prometheus is enabled via nested observability settings
+        obs_settings = getattr(settings, "observability", None)
+        if obs_settings:
+            prometheus_enabled = getattr(obs_settings, "prometheus_enabled", True)
+            service_name = getattr(obs_settings, "service_name", "enterprise_knowledge_agent")
+        else:
+            # Fallback for older config without observability section
+            prometheus_enabled = getattr(settings, "prometheus_enabled", True)
+            service_name = getattr(settings, "service_name", "enterprise_knowledge_agent")
         
         if prometheus_enabled:
             try:
                 from src.observability.metrics.prometheus import PrometheusMetrics
-                
-                service_name = getattr(
-                    settings,
-                    "service_name",
-                    "enterprise_knowledge_agent"
-                )
                 
                 return PrometheusMetrics(
                     namespace=service_name.replace("-", "_"),

@@ -238,6 +238,16 @@ class SampleEvaluationResult:
     metrics: EvaluationMetrics
     raw_scores: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "sample_id": self.sample_id,
+            "question": self.question,
+            "metrics": self.metrics.to_dict(),
+            "raw_scores": self.raw_scores,
+            "error": self.error,
+        }
 
 
 @dataclass

@@ -113,23 +113,18 @@ class RAGMetrics:
             strategy: Retrieval strategy (vector, bm25, hybrid).
             collection: Optional collection name.
         """
+        # Note: strategy and collection are logged but not added as labels
+        # since MetricLabels has a fixed schema. In production, you might
+        # extend MetricLabels or use a different approach for custom labels.
         labels = MetricLabels(
-            operation="retrieval",
+            operation=f"retrieval_{strategy}",  # Encode strategy in operation name
             status="success",
         )
-        # Add strategy as custom attribute
-        labels_dict = labels.to_dict()
-        labels_dict["strategy"] = strategy
-        if collection:
-            labels_dict["collection"] = collection
-        
-        # Create custom labels
-        custom_labels = MetricLabels(**labels_dict)
         
         # Record counter
         self._metrics.counter(
             MetricNames.RETRIEVAL_CALLS_TOTAL,
-            labels=custom_labels,
+            labels=labels,
             description="Total number of retrieval calls"
         )
         
@@ -137,7 +132,7 @@ class RAGMetrics:
         self._metrics.histogram(
             MetricNames.RETRIEVAL_DURATION_SECONDS,
             duration_seconds,
-            labels=custom_labels,
+            labels=labels,
             description="Retrieval operation duration in seconds"
         )
         
@@ -145,7 +140,7 @@ class RAGMetrics:
         self._metrics.histogram(
             MetricNames.RETRIEVAL_DOCUMENTS_RETURNED,
             num_results,
-            labels=custom_labels,
+            labels=labels,
             description="Number of documents returned per retrieval",
             buckets=list(DOCUMENT_BUCKETS)
         )
