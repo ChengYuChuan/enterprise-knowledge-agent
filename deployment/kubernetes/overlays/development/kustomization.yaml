@@ -78,12 +78,11 @@ patches:
       - op: remove
         path: /spec/tls
 
-# ConfigMap patches for development
-configMapGenerator:
-  - name: knowledge-agent-config
-    behavior: merge
-    literals:
-      - APP_ENV=development
-      - LOG_LEVEL=DEBUG
-      - DEBUG=true
-      - WORKERS=1
+patches:
+  - target:
+      kind: ConfigMap
+      name: knowledge-agent-config
+    patch: |-
+      - op: add
+        path: /data/APP_ENV
+        value: "development"

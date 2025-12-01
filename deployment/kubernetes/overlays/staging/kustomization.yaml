@@ -80,11 +80,11 @@ patches:
         value: staging.knowledge-agent.example.com
 
 # ConfigMap patches for staging
-configMapGenerator:
-  - name: knowledge-agent-config
-    behavior: merge
-    literals:
-      - APP_ENV=staging
-      - LOG_LEVEL=INFO
-      - DEBUG=false
-      - WORKERS=4
+patches:
+  - target:
+      kind: ConfigMap
+      name: knowledge-agent-config
+    patch: |-
+      - op: add
+        path: /data/APP_ENV
+        value: "development"

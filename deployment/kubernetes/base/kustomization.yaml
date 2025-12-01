@@ -23,10 +23,12 @@ kind: Kustomization
 namespace: knowledge-agent
 
 # Common labels applied to all resources
-commonLabels:
-  app.kubernetes.io/name: knowledge-agent
-  app.kubernetes.io/part-of: enterprise-knowledge-platform
-  app.kubernetes.io/managed-by: kustomize
+labels:
+  - pairs:
+      app.kubernetes.io/name: knowledge-agent
+      app.kubernetes.io/part-of: enterprise-knowledge-platform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: true
 
 # Common annotations
 commonAnnotations:

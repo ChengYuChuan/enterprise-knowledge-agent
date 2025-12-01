@@ -82,11 +82,11 @@ patches:
         value: api.knowledge-agent.com
 
 # ConfigMap patches for production
-configMapGenerator:
-  - name: knowledge-agent-config
-    behavior: merge
-    literals:
-      - APP_ENV=production
-      - LOG_LEVEL=INFO
-      - DEBUG=false
-      - WORKERS=8
+patches:
+  - target:
+      kind: ConfigMap
+      name: knowledge-agent-config
+    patch: |-
+      - op: add
+        path: /data/APP_ENV
+        value: "development"
